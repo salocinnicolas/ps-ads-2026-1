@@ -1,5 +1,16 @@
 import {prisma} from '../database/client.js'
 
+import argon2 from 'argon2';
+
+
+const ARGON2_CONFIG = {
+ type: argon2.argon2id,  // variante recomendada do algoritmo
+ memoryCost: 65536,      // 64 KB de memória máxima utilizada
+ timeCost: 3,            // número de iterações
+ parallelism: 4          // número de threads simultâneas
+}
+
+
 
 const controller = {}   // Objeto vazio
 
@@ -10,6 +21,13 @@ const controller = {}   // Objeto vazio
 // res ~> representa a resposta (response)
 controller.create = async function(req, res) {
  try {
+// Caso exista o campo "password" em req.body, é
+   // necessário gerar o hash da senha antes de
+   // armazená-la no BD, usando o algoritmo argon2
+   if(req.body.password) {
+     req.body.password = await argon2.hash(req.body.password, ARGON2_CONFIG)
+   }
+
    // Para a inserção no BD, os dados são enviados
    // dentro de um objeto chamado "body" que vem
    // dentro da requisição ("req")
@@ -38,7 +56,8 @@ controller.retrieveAll = async function(req, res) {
    // Recupera todos os registros de clientes, ordenados pelo
    // campo "name", ascendente
    const result = await prisma.user.findMany({
-     orderBy: [ { nfullname: 'asc' }]
+    omit : {password: true}, // omite o campo "passoword" do resultado
+    orderBy: [ { fullname: 'asc' }]
    })
 
 
@@ -62,7 +81,8 @@ controller.retrieveOne = async function(req, res) {
    // Busca no banco de dados apenas o registro indicado
    // pelo parâmetro "id"
    const result = await prisma.user.findUnique({
-     where: { id: Number(req.params.id) }
+    omit: { password: true }, 
+    where: { id: Number(req.params.id) }
    })
 
 
@@ -85,6 +105,9 @@ controller.retrieveOne = async function(req, res) {
 
 controller.update = async function(req, res) {
  try {
+  if(req.body.password) {
+     req.body.password = await argon2.hash(req.body.password, ARGON2_CONFIG)
+   }
    // Busca o registro no banco de dados por seu id
    // e o atualiza com as informações que vieram em
    // req.body
@@ -145,6 +168,32 @@ controller.delete = async function(req, res) {
    // HTTP 500: Internal Server Error
    else res.status(500).end()
  } 
+}
+
+controller.login = async function (req, res) {
+  try{
+    // busca o úsuario no bd por meio dos campos ursanamee
+    const user = await prisma.user.findUnique({
+      where: {
+        or: [
+          {username: req.body?.username},
+          {email: req.body?.email}
+        ]
+      }
+    })
+
+      //se o usuario não for encontrado, retorna
+      // http 401: Unauthorized
+    if(! user){
+      console.error(`ERRo DE LOGIN "${req.body?.username}" ou e-mail "${req.body?.email}" não encontrado`)
+      return res.send(401).end()
+    }
+  }
+  catch(error){
+    console.error(error)
+    //HTTP 500: Internal Server Error
+    res.status(500).end()
+  }
 }
 
 export default controller
