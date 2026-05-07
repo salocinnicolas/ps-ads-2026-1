@@ -12,7 +12,6 @@ import Box from '@mui/material/Box'
 import { ThemeProvider } from '@mui/material/styles'
 import theme from './ui/theme'
 
-
 import FooterBar from './ui/FooterBar'
 
 
